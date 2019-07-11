@@ -17,8 +17,18 @@ use {Signature, Trap};
 /// This reference has a reference-counting semantics.
 ///
 /// [`FuncInstance`]: struct.FuncInstance.html
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct FuncRef(Rc<FuncInstance>);
+
+impl PartialEq for FuncRef {
+    fn eq(&self, other: &FuncRef) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+// This forces Eq to be defined, given PartialEq is implemented above.
+impl Eq for FuncRef {
+}
 
 impl ::core::ops::Deref for FuncRef {
     type Target = FuncInstance;
@@ -54,6 +64,24 @@ pub(crate) enum FuncInstanceInternal {
         signature: Signature,
         host_func_index: usize,
     },
+}
+
+// NOTE: implementing this here is easier then deriving Hash on every dependent type
+impl std::hash::Hash for FuncInstance {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        match self.as_internal() {
+            &FuncInstanceInternal::Internal { ref signature, ref module, .. } => {
+                signature.hash(state);
+                // FIXME: consider module and body for hashing..
+                // module.hash(state);
+                // body.hash(state);
+            }
+            &FuncInstanceInternal::Host { ref signature, host_func_index, .. } => {
+                signature.hash(state);
+                host_func_index.hash(state);
+            }
+        }
+    }
 }
 
 impl fmt::Debug for FuncInstance {

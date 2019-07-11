@@ -171,7 +171,7 @@ pub struct Interpreter {
     call_stack: CallStack,
     return_type: Option<ValueType>,
     state: InterpreterState,
-    // TOOD: use ModuleRef?
+    // TODO: should this be a ref? RefCell?
     profiling: HashMap<FuncRef, Duration>,
 }
 
@@ -210,6 +210,13 @@ impl Interpreter {
         &self.state
     }
 
+    pub fn print_profiling(&self) {
+        // TODO: resolve FuncRef to function names
+        for (key, val) in self.profiling.iter() {
+            println!("Function '{:#?}' took {}us", key, val.as_micros());
+        }
+    }
+
     pub fn start_execution<'a, E: Externals + 'a>(
         &mut self,
         externals: &'a mut E,
@@ -226,6 +233,8 @@ impl Interpreter {
 
         // Ensure that stack is empty after the execution. This is guaranteed by the validation properties.
         assert!(self.value_stack.len() == 0);
+
+        self.print_profiling();
 
         Ok(opt_return_value)
     }
@@ -257,6 +266,8 @@ impl Interpreter {
 
         // Ensure that stack is empty after the execution. This is guaranteed by the validation properties.
         assert!(self.value_stack.len() == 0);
+
+        self.print_profiling();
 
         Ok(opt_return_value)
     }
@@ -290,7 +301,8 @@ impl Interpreter {
 
             // stop profiling here
             let duration = start_time.elapsed();
-            self.profiling[&function_ref] += duration;
+            println!("elapsed: {:?}", duration.as_micros());
+            *self.profiling.entry(function_ref.clone()).or_insert(Duration::new(0, 0)) += duration;
 
             match function_return {
                 RunResult::Return => {

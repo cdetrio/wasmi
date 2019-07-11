@@ -12,7 +12,7 @@ use parity_wasm::elements::{
 ///
 /// [type]: enum.ValueType.html
 /// [function]: struct.FuncInstance.html
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Signature {
     params: Cow<'static, [ValueType]>,
     return_type: Option<ValueType>,
@@ -75,7 +75,7 @@ impl Signature {
 /// See [`RuntimeValue`] for details.
 ///
 /// [`RuntimeValue`]: enum.RuntimeValue.html
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ValueType {
     /// 32-bit signed or unsigned integer.
     I32,

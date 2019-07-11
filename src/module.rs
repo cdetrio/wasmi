@@ -541,6 +541,18 @@ impl ModuleInstance {
     ) -> Result<NotStartedModuleRef<'m>, Error> {
         let module = loaded_module.module();
 
+        // Dump function table
+        if let Some(names_section) = module.names_section() {
+            match names_section {
+                parity_wasm::elements::NameSection::Function(functions) => {
+                    for (index, name) in functions.names().iter() {
+                        println!("{}: {}", index, name);
+                    }
+                },
+                _ => {}
+            }
+        }
+
         let mut extern_vals = Vec::new();
         for import_entry in module.import_section().map(|s| s.entries()).unwrap_or(&[]) {
             let module_name = import_entry.module();

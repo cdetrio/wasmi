@@ -549,8 +549,10 @@ impl Module {
     /// }
     /// ```
     pub fn from_buffer<B: AsRef<[u8]>>(buffer: B) -> Result<Module, Error> {
-        let module = parity_wasm::elements::deserialize_buffer(buffer.as_ref())
+        let module: parity_wasm::elements::Module = parity_wasm::elements::deserialize_buffer(buffer.as_ref())
             .map_err(|e: parity_wasm::elements::Error| Error::Validation(e.to_string()))?;
+        // FIXME: error handling
+        let module = module.parse_names().expect("parsing names section failed");
         Module::from_parity_wasm_module(module)
     }
 

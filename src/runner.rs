@@ -2,6 +2,9 @@ use alloc::{boxed::Box, vec::Vec};
 use core::fmt;
 use core::ops;
 use core::{u32, usize};
+use std::time::Instant;
+use std::time::Duration;
+use std::collections::HashMap;
 use func::{FuncInstance, FuncInstanceInternal, FuncRef};
 use host::Externals;
 use isa;
@@ -168,6 +171,8 @@ pub struct Interpreter {
     call_stack: CallStack,
     return_type: Option<ValueType>,
     state: InterpreterState,
+    // TOOD: use ModuleRef?
+    profiling: HashMap<FuncRef, Duration>,
 }
 
 impl Interpreter {
@@ -197,6 +202,7 @@ impl Interpreter {
             call_stack,
             return_type,
             state: InterpreterState::Initialized,
+            profiling: HashMap::new(),
         })
     }
 
@@ -275,9 +281,16 @@ impl Interpreter {
                 function_context.initialize(&function_body.locals, &mut self.value_stack)?;
             }
 
+            // start profiling here
+            let start_time = Instant::now();
+
             let function_return = self
                 .do_run_function(&mut function_context, &function_body.code)
                 .map_err(Trap::new)?;
+
+            // stop profiling here
+            let duration = start_time.elapsed();
+            self.profiling[&function_ref] += duration;
 
             match function_return {
                 RunResult::Return => {

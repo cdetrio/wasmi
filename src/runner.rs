@@ -172,6 +172,7 @@ pub struct Interpreter {
     return_type: Option<ValueType>,
     state: InterpreterState,
     // TODO: should this be a ref? RefCell?
+    // TODO: use indexmap? https://github.com/bluss/indexmap
     profiling: HashMap<FuncRef, Duration>,
 }
 
@@ -211,8 +212,13 @@ impl Interpreter {
     }
 
     pub fn print_profiling(&self) {
+        // Sort results by value.
+        use std::iter::FromIterator;
+        let mut profile = Vec::from_iter(self.profiling.clone());
+        profile.sort_by(|&(_, a), &(_, b)| b.cmp(&a));
+
         // TODO: resolve FuncRef to function names
-        for (key, val) in self.profiling.iter() {
+        for (key, val) in profile.iter() {
             //println!("Function '{:#?}' took {}us", key, val.as_micros());
             println!("Function {:#?} took {}us", key.get_func_index().unwrap(), val.as_micros());
         }

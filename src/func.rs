@@ -37,6 +37,23 @@ impl ::core::ops::Deref for FuncRef {
     }
 }
 
+impl FuncRef {
+    pub fn get_func_index(&self) -> Option<u32> {
+        match self.0.as_internal() {
+            &FuncInstanceInternal::Internal { ref signature, ref module, .. } => {
+                if let Some(module) = module.upgrade() {
+                    module.func_index_by_funcref(&self)
+                } else {
+                    None
+                }
+            }
+            &FuncInstanceInternal::Host { .. } => {
+                None
+            }
+        }
+    }
+}
+
 /// Runtime representation of a function.
 ///
 /// Functions are the unit of organization of code in WebAssembly. Each function takes a sequence of values

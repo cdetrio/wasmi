@@ -177,6 +177,14 @@ impl ModuleInstance {
         }
     }
 
+    pub(crate) fn func_index_by_funcref(&self, reference: &FuncRef) -> Option<u32> {
+        if let Some(index) = self.funcs.borrow().iter().position(|ref x| x == &reference) {
+            Some(index as u32)
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn memory_by_index(&self, idx: u32) -> Option<MemoryRef> {
         self.memories.borrow_mut().get(idx as usize).cloned()
     }

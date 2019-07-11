@@ -213,7 +213,8 @@ impl Interpreter {
     pub fn print_profiling(&self) {
         // TODO: resolve FuncRef to function names
         for (key, val) in self.profiling.iter() {
-            println!("Function '{:#?}' took {}us", key, val.as_micros());
+            //println!("Function '{:#?}' took {}us", key, val.as_micros());
+            println!("Function {:#?} took {}us", key.get_func_index().unwrap(), val.as_micros());
         }
     }
 

@@ -212,6 +212,9 @@ impl Interpreter {
     }
 
     pub fn print_profiling(&self) {
+        let total_time = self.profiling.iter().fold(Duration::new(0, 0), |acc, e: (&FuncRef, &Duration)| acc + *e.1);
+        println!("Total time taken {}us", total_time.as_micros());
+
         // Sort results by value.
         use std::iter::FromIterator;
         let mut profile = Vec::from_iter(self.profiling.clone());
@@ -220,7 +223,12 @@ impl Interpreter {
         // TODO: resolve FuncRef to function names
         for (key, val) in profile.iter() {
             //println!("Function '{:#?}' took {}us", key, val.as_micros());
-            println!("Function {:#?} took {}us", key.get_func_index().unwrap(), val.as_micros());
+            println!("Function {:#?} took {}us ({:.2}%)",
+                key.get_func_index().unwrap(),
+                val.as_micros(),
+                // TODO: use as_nanos() for better precision?
+                val.as_micros() * 100 / total_time.as_micros()
+            );
         }
     }
 
@@ -308,7 +316,7 @@ impl Interpreter {
 
             // stop profiling here
             let duration = start_time.elapsed();
-            println!("elapsed: {:?}", duration.as_micros());
+            // println!("elapsed: {:?}", duration.as_micros());
             *self.profiling.entry(function_ref.clone()).or_insert(Duration::new(0, 0)) += duration;
 
             match function_return {

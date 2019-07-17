@@ -2,9 +2,6 @@ use alloc::{boxed::Box, vec::Vec};
 use core::fmt;
 use core::ops;
 use core::{u32, usize};
-use std::time::Instant;
-use std::time::Duration;
-use std::collections::HashMap;
 use func::{FuncInstance, FuncInstanceInternal, FuncRef};
 use host::Externals;
 use isa;
@@ -13,6 +10,9 @@ use memory_units::Pages;
 use module::ModuleRef;
 use nan_preserving_float::{F32, F64};
 use parity_wasm::elements::Local;
+use std::collections::HashMap;
+use std::time::Duration;
+use std::time::Instant;
 use validation::{DEFAULT_MEMORY_INDEX, DEFAULT_TABLE_INDEX};
 use value::{
     ArithmeticOps, ExtendInto, Float, Integer, LittleEndianConvert, RuntimeValue, TransmuteInto,
@@ -165,6 +165,12 @@ enum RunResult {
     NestedCall(FuncRef),
 }
 
+#[derive(Clone, Debug, Hash)]
+pub struct Profile {
+    duration: Duration,
+    invocations: u32,
+}
+
 /// Function interpreter.
 pub struct Interpreter {
     value_stack: ValueStack,
@@ -173,7 +179,7 @@ pub struct Interpreter {
     state: InterpreterState,
     // TODO: should this be a ref? RefCell?
     // TODO: use indexmap? https://github.com/bluss/indexmap
-    profiling: HashMap<FuncRef, Duration>,
+    profiling: HashMap<FuncRef, Profile>,
 }
 
 impl Interpreter {
@@ -212,22 +218,29 @@ impl Interpreter {
     }
 
     pub fn print_profiling(&self) {
-        let total_time = self.profiling.iter().fold(Duration::new(0, 0), |acc, e: (&FuncRef, &Duration)| acc + *e.1);
+        let total_time = self
+            .profiling
+            .iter()
+            .fold(Duration::new(0, 0), |acc, e: (&FuncRef, &Profile)| {
+                acc + e.1.duration
+            });
         println!("Total time taken {}us", total_time.as_micros());
 
         // Sort results by value.
         use std::iter::FromIterator;
         let mut profile = Vec::from_iter(self.profiling.clone());
-        profile.sort_by(|&(_, a), &(_, b)| b.cmp(&a));
+        profile.sort_by(|(_, a), (_, b)| b.duration.cmp(&a.duration));
 
         // TODO: resolve FuncRef to function names
         for (key, val) in profile.iter() {
             //println!("Function '{:#?}' took {}us", key, val.as_micros());
-            println!("Function {:#?} took {}us ({:.2}%)",
+            println!(
+                "Function {:#?} took {}us ({:.2}%) and had {} invocations",
                 key.get_func_index().unwrap(),
-                val.as_micros(),
+                val.duration.as_micros(),
                 // TODO: use as_nanos() for better precision?
-                val.as_micros() * 100 / total_time.as_micros()
+                val.duration.as_micros() * 100 / total_time.as_micros(),
+                val.invocations
             );
         }
     }
@@ -317,7 +330,15 @@ impl Interpreter {
             // stop profiling here
             let duration = start_time.elapsed();
             // println!("elapsed: {:?}", duration.as_micros());
-            *self.profiling.entry(function_ref.clone()).or_insert(Duration::new(0, 0)) += duration;
+            let profile = self
+                .profiling
+                .entry(function_ref.clone())
+                .or_insert(Profile {
+                    duration: Duration::new(0, 0),
+                    invocations: 0,
+                });
+            profile.duration += duration;
+            profile.invocations += 1;
 
             match function_return {
                 RunResult::Return => {

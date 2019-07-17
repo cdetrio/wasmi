@@ -169,6 +169,7 @@ enum RunResult {
 pub struct Profile {
     duration: Duration,
     invocations: u32,
+    nested_calls: u32,
 }
 
 /// Function interpreter.
@@ -235,12 +236,13 @@ impl Interpreter {
         for (key, val) in profile.iter() {
             //println!("Function '{:#?}' took {}us", key, val.as_micros());
             println!(
-                "Function {:#?} took {}us ({:.2}%) and had {} invocations",
+                "Function {:#?} took {}us ({:.2}%) and had {} invocations and {} nested calls",
                 key.get_func_index().unwrap(),
                 val.duration.as_micros(),
                 // TODO: use as_nanos() for better precision?
                 val.duration.as_micros() * 100 / total_time.as_micros(),
-                val.invocations
+                val.invocations,
+                val.nested_calls
             );
         }
     }
@@ -336,12 +338,13 @@ impl Interpreter {
                 .or_insert(Profile {
                     duration: Duration::new(0, 0),
                     invocations: 0,
+                    nested_calls: 0,
                 });
             profile.duration += duration;
-            profile.invocations += 1;
 
             match function_return {
                 RunResult::Return => {
+                    profile.invocations += 1;
                     if self.call_stack.is_empty() {
                         // This was the last frame in the call stack. This means we
                         // are done executing.
@@ -349,6 +352,7 @@ impl Interpreter {
                     }
                 }
                 RunResult::NestedCall(nested_func) => {
+                    profile.nested_calls += 1;
                     if self.call_stack.is_full() {
                         return Err(TrapKind::StackOverflow.into());
                     }

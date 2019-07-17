@@ -168,8 +168,11 @@ enum RunResult {
 #[derive(Clone, Debug, Hash)]
 pub struct Profile {
     duration: Duration,
+    cumulative: Duration,
+    cumulative_start: Option<Instant>,
     invocations: u32,
     nested_calls: u32,
+    memcpy_calls: u32,
 }
 
 /// Function interpreter.
@@ -225,24 +228,33 @@ impl Interpreter {
             .fold(Duration::new(0, 0), |acc, e: (&FuncRef, &Profile)| {
                 acc + e.1.duration
             });
+        let total_cumulative_time = self
+            .profiling
+            .iter()
+            .fold(Duration::new(0, 0), |acc, e: (&FuncRef, &Profile)| {
+                acc + e.1.cumulative
+            });
         println!("Total time taken {}us", total_time.as_micros());
 
         // Sort results by value.
         use std::iter::FromIterator;
         let mut profile = Vec::from_iter(self.profiling.clone());
-        profile.sort_by(|(_, a), (_, b)| b.duration.cmp(&a.duration));
+        profile.sort_by(|(_, a), (_, b)| b.cumulative.cmp(&a.cumulative));
 
         // TODO: resolve FuncRef to function names
         for (key, val) in profile.iter() {
             //println!("Function '{:#?}' took {}us", key, val.as_micros());
             println!(
-                "Function {:#?} took {}us ({:.2}%) and had {} invocations and {} nested calls",
+                "Function {:#?} took {}us cumulatively ({:.2}%), {}us individually ({:.2}%), and had {} invocations and {} nested calls and {} memcpy calls",
                 key.get_func_index().unwrap(),
+                val.cumulative.as_micros(),
+                val.cumulative.as_micros() * 100 / total_cumulative_time.as_micros(),
                 val.duration.as_micros(),
                 // TODO: use as_nanos() for better precision?
                 val.duration.as_micros() * 100 / total_time.as_micros(),
                 val.invocations,
-                val.nested_calls
+                val.nested_calls,
+                val.memcpy_calls
             );
         }
     }
@@ -337,14 +349,26 @@ impl Interpreter {
                 .entry(function_ref.clone())
                 .or_insert(Profile {
                     duration: Duration::new(0, 0),
+                    cumulative: Duration::new(0, 0),
+                    cumulative_start: None,
                     invocations: 0,
                     nested_calls: 0,
+                    memcpy_calls: 0,
                 });
             profile.duration += duration;
+            if let None = profile.cumulative_start {
+                profile.cumulative_start = Some(start_time.clone());
+            }
 
             match function_return {
                 RunResult::Return => {
                     profile.invocations += 1;
+                    if let Some(s) = profile.cumulative_start {
+                        profile.cumulative += s.elapsed();
+                    } else {
+                        panic!("haven't started cumulative start instant");
+                    }
+                    profile.cumulative_start = None;
                     if self.call_stack.is_empty() {
                         // This was the last frame in the call stack. This means we
                         // are done executing.
@@ -360,6 +384,9 @@ impl Interpreter {
                     match *nested_func.as_internal() {
                         FuncInstanceInternal::Internal { .. } => {
                             let nested_context = FunctionContext::new(nested_func.clone());
+                            if nested_context.function.get_func_index().unwrap() == 80 {
+                                profile.memcpy_calls += 1;
+                            }
                             self.call_stack.push(function_context);
                             self.call_stack.push(nested_context);
                         }

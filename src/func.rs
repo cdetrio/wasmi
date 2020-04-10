@@ -6,6 +6,7 @@ use core::fmt;
 use host::Externals;
 use isa;
 use module::ModuleInstance;
+use module::ModuleRef;
 use parity_wasm::elements::Local;
 use runner::{check_function_args, Interpreter, InterpreterState, StackRecycler};
 use types::ValueType;
@@ -47,8 +48,16 @@ impl FuncRef {
                     None
                 }
             }
-            &FuncInstanceInternal::Host { .. } => {
-                None
+            &FuncInstanceInternal::Host { ref host_func_index, .. } => {
+                Some(*host_func_index as u32)
+                //None
+                /*
+                if let Some(module) = module.upgrade() {
+                    module.func_index_by_funcref(&self)
+                } else {
+                    None
+                }
+                */
             }
         }
     }
@@ -80,6 +89,7 @@ pub(crate) enum FuncInstanceInternal {
     Host {
         signature: Signature,
         host_func_index: usize,
+        //module: Weak<ModuleInstance>,
     },
 }
 
@@ -126,9 +136,12 @@ impl FuncInstance {
     ///
     /// [`Externals`]: trait.Externals.html
     pub fn alloc_host(signature: Signature, host_func_index: usize) -> FuncRef {
+        //let module_rc = Rc::new(ModuleInstance::default());
+        //let module = Rc::downgrade(&module_rc);
         let func = FuncInstanceInternal::Host {
             signature,
             host_func_index,
+        //    module,
         };
         FuncRef(Rc::new(FuncInstance(func)))
     }

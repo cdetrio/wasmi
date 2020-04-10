@@ -173,6 +173,9 @@ pub struct Profile {
     invocations: u32,
     nested_calls: u32,
     memcpy_calls: u32,
+    mulmodmont256_calls: u32,
+    addmod256_calls: u32,
+    submod256_calls: u32,
 }
 
 /// Function interpreter.
@@ -236,6 +239,29 @@ impl Interpreter {
             });
         println!("Total time taken {}us", total_time.as_micros());
 
+        let total_mulmodmont256_calls = self
+            .profiling
+            .iter()
+            .fold(0, |acc, e: (&FuncRef, &Profile)| {
+                acc + e.1.mulmodmont256_calls
+            });
+        let total_addmod256_calls = self
+            .profiling
+            .iter()
+            .fold(0, |acc, e: (&FuncRef, &Profile)| {
+                acc + e.1.addmod256_calls
+            });
+        let total_submod256_calls = self
+            .profiling
+            .iter()
+            .fold(0, |acc, e: (&FuncRef, &Profile)| {
+                acc + e.1.submod256_calls
+            });
+        println!("Total mulmodmont256 calls: {}", total_mulmodmont256_calls);
+        println!("Total addmod256 calls: {}", total_addmod256_calls);
+        println!("Total submod256 calls: {}", total_submod256_calls);
+
+
         // Sort results by value.
         use std::iter::FromIterator;
         let mut profile = Vec::from_iter(self.profiling.clone());
@@ -245,7 +271,7 @@ impl Interpreter {
         for (key, val) in profile.iter() {
             //println!("Function '{:#?}' took {}us", key, val.as_micros());
             println!(
-                "Function {:#?} took {}us cumulatively ({:.2}%), {}us individually ({:.2}%), and had {} invocations and {} nested calls and {} memcpy calls",
+                "Function {:#?} took {}us cumulatively ({:.2}%), {}us individually ({:.2}%), and had {} invocations and {} nested calls and {} memcpy calls and {} mulmodmont256 {} addmod256 {} submod256 calls",
                 key.get_func_index().unwrap(),
                 val.cumulative.as_micros(),
                 val.cumulative.as_micros() * 100 / total_cumulative_time.as_micros(),
@@ -254,7 +280,10 @@ impl Interpreter {
                 val.duration.as_micros() * 100 / total_time.as_micros(),
                 val.invocations,
                 val.nested_calls,
-                val.memcpy_calls
+                val.memcpy_calls,
+                val.mulmodmont256_calls,
+                val.addmod256_calls,
+                val.submod256_calls,
             );
         }
     }
@@ -354,6 +383,9 @@ impl Interpreter {
                     invocations: 0,
                     nested_calls: 0,
                     memcpy_calls: 0,
+                    mulmodmont256_calls: 0,
+                    addmod256_calls: 0,
+                    submod256_calls: 0,
                 });
             profile.duration += duration;
             if let None = profile.cumulative_start {
@@ -381,9 +413,14 @@ impl Interpreter {
                         return Err(TrapKind::StackOverflow.into());
                     }
 
+                    let nested_func_cloned = nested_func.clone();
+
                     match *nested_func.as_internal() {
                         FuncInstanceInternal::Internal { .. } => {
                             let nested_context = FunctionContext::new(nested_func.clone());
+                            if nested_context.function.get_func_index().unwrap() == 80 {
+                                profile.memcpy_calls += 1;
+                            }
                             if nested_context.function.get_func_index().unwrap() == 80 {
                                 profile.memcpy_calls += 1;
                             }
@@ -391,6 +428,46 @@ impl Interpreter {
                             self.call_stack.push(nested_context);
                         }
                         FuncInstanceInternal::Host { ref signature, .. } => {
+                            //let nested_context = FunctionContext::new(nested_func.clone());
+                            //let nested_context = FunctionContext::new(nested_func.clone());
+                            //println!("called host func index: {:?}", nested_func.get_func_index().unwrap());
+                            if nested_func.get_func_index().unwrap() == 12 {
+                                profile.mulmodmont256_calls += 1;
+                            }
+                            if nested_func.get_func_index().unwrap() == 13 {
+                                profile.addmod256_calls += 1;
+                            }
+                            if nested_func.get_func_index().unwrap() == 14 {
+                                profile.submod256_calls += 1;
+                            }
+                            //if nested_context.function.get_func_index().unwrap() == 3 {
+                            //    profile.addmod256_calls += 1;
+                            //}
+                            //let nested_func_as_internal = &nested_func;
+                            /*
+                            let profile = self
+                                .profiling
+                                .entry(nested_func.clone())
+                                .or_insert(Profile {
+                                    duration: Duration::new(0, 0),
+                                    cumulative: Duration::new(0, 0),
+                                    cumulative_start: None,
+                                    invocations: 0,
+                                    nested_calls: 0,
+                                    memcpy_calls: 0,
+                                    mulmodmont256_calls: 0,
+                                    addmod256_calls: 0,
+                                });
+                            */
+                            //profile.invocations += 1;
+                            /*
+                            if nested_context.function.get_func_index().unwrap() == 2 {
+                                profile.mulmodmont256_calls += 1;
+                            }
+                            if nested_context.function.get_func_index().unwrap() == 3 {
+                                profile.addmod256_calls += 1;
+                            }
+                            */
                             let args = prepare_function_args(signature, &mut self.value_stack);
                             // We push the function context first. If the VM is not resumable, it does no harm. If it is, we then save the context here.
                             self.call_stack.push(function_context);
@@ -1358,6 +1435,8 @@ impl FunctionContext {
         let module = match function.as_internal() {
 			FuncInstanceInternal::Internal { module, .. } => module.upgrade().expect("module deallocated"),
 			FuncInstanceInternal::Host { .. } => panic!("Host functions can't be called as internally defined functions; Thus FunctionContext can be created only with internally defined functions; qed"),
+            //FuncInstanceInternal::Host { module, .. } => module.upgrade().expect("module deallocated"),
+            //FuncInstanceInternal::Host { module, .. } => module,
 		};
         let memory = module.memory_by_index(DEFAULT_MEMORY_INDEX);
         FunctionContext {

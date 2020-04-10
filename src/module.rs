@@ -166,7 +166,7 @@ pub struct ModuleInstance {
 }
 
 impl ModuleInstance {
-    fn default() -> Self {
+    pub fn default() -> Self {
         ModuleInstance {
             funcs: RefCell::new(Vec::new()),
             signatures: RefCell::new(Vec::new()),
